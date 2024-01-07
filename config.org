@@ -1,0 +1,190 @@
+#+TITLE: kettroni's Vanilla Emacs Config
+#+AUTHOR: Roni Kettunen
+#+DESCRIPTION: kettroni's personal (yet another) vanilla emacs config.
+#+STARTUP: showeverything
+#+OPTIONS: toc:2
+
+* Table of Contents :toc:
+- [[#import-programs-to-load-first][Import programs to load first]]
+  - [[#package-manager-elpaca][Package Manager (elpaca)]]
+  - [[#load-evil-mode][Load Evil Mode]]
+  - [[#general-keybindings][General Keybindings]]
+- [[#fonts][Fonts]]
+- [[#gui-tweaks][GUI Tweaks]]
+  - [[#disable-extra-stuff][Disable extra stuff]]
+  - [[#display-line-numbers][Display line numbers]]
+  - [[#fullscreen][Fullscreen]]
+- [[#which-key][Which-Key]]
+- [[#org-mode][Org Mode]]
+  - [[#enabling-table-of-contents][Enabling Table of Contents]]
+  - [[#enabling-org-bullets][Enabling Org bullets]]
+
+* Import programs to load first
+** Package Manager (elpaca)
+#+begin_src emacs-lisp
+(defvar elpaca-installer-version 0.6)
+(defvar elpaca-directory (expand-file-name "elpaca/" user-emacs-directory))
+(defvar elpaca-builds-directory (expand-file-name "builds/" elpaca-directory))
+(defvar elpaca-repos-directory (expand-file-name "repos/" elpaca-directory))
+(defvar elpaca-order '(elpaca :repo "https://github.com/progfolio/elpaca.git"
+                       :ref nil
+                       :files (:defaults "elpaca-test.el" (:exclude "extensions"))
+                       :build (:not elpaca--activate-package)))
+(let* ((repo  (expand-file-name "elpaca/" elpaca-repos-directory))
+       (build (expand-file-name "elpaca/" elpaca-builds-directory))
+       (order (cdr elpaca-order))
+       (default-directory repo))
+  (add-to-list 'load-path (if (file-exists-p build) build repo))
+  (unless (file-exists-p repo)
+    (make-directory repo t)
+    (when (< emacs-major-version 28) (require 'subr-x))
+    (condition-case-unless-debug err
+        (if-let ((buffer (pop-to-buffer-same-window "*elpaca-bootstrap*"))
+                 ((zerop (call-process "git" nil buffer t "clone"
+                                       (plist-get order :repo) repo)))
+                 ((zerop (call-process "git" nil buffer t "checkout"
+                                       (or (plist-get order :ref) "--"))))
+                 (emacs (concat invocation-directory invocation-name))
+                 ((zerop (call-process emacs nil buffer nil "-Q" "-L" "." "--batch"
+                                       "--eval" "(byte-recompile-directory \".\" 0 'force)")))
+                 ((require 'elpaca))
+                 ((elpaca-generate-autoloads "elpaca" repo)))
+            (progn (message "%s" (buffer-string)) (kill-buffer buffer))
+          (error "%s" (with-current-buffer buffer (buffer-string))))
+      ((error) (warn "%s" err) (delete-directory repo 'recursive))))
+  (unless (require 'elpaca-autoloads nil t)
+    (require 'elpaca)
+    (elpaca-generate-autoloads "elpaca" repo)
+    (load "./elpaca-autoloads")))
+(add-hook 'after-init-hook #'elpaca-process-queues)
+(elpaca `(,@elpaca-order))
+
+;; Install use-package support
+(elpaca elpaca-use-package
+        ;; Enable :elpaca use-package keyword.
+        (elpaca-use-package-mode)
+        ;; Assume :elpaca t unless otherwise specified.
+        (setq elpaca-use-package-by-default t))
+(elpaca-wait)
+#+end_src
+
+** Load Evil Mode
+#+begin_src emacs-lisp
+;; Expands to: (elpaca evil (use-package evil :demand t))
+(use-package evil
+  :init
+  (setq evil-want-integration t)
+  (setq evil-want-keybinding nil)
+  :config
+  (evil-mode 1))
+
+(use-package evil-collection
+  :after evil
+  :config
+  (setq evil-collection-mode-list '(dashboard dired ibuffer))
+  (evil-collection-init))
+#+end_src
+
+** General Keybindings
+#+begin_src emacs-lisp
+;; TODO: fix me
+;; (defun eval-surrounding-or-next-closure ()
+;;   "Evaluates surrounding closure if found, otherwise the next closure."
+;;   (interactive)
+;;   (save-excursion
+;;     (let ((original-point (point)))
+;;       (evil-visual-char)
+;;       (call-interactively #'evil-a-paren)
+;;       (call-interactively #'eval-region)
+;;       (goto-char original-point))))
+
+(use-package general
+  :config
+  (general-evil-setup)
+  (general-create-definer kettroni/leader-keys
+    :states '(normal visual emacs)
+    :keymaps 'override
+    :prefix "SPC"
+    :grobal-prefix "M-SPC")
+
+  (kettroni/leader-keys
+   ;; General
+   "." 'find-file ;; TODO: Change to "counsel-find-file".
+   "," 'switch-to-buffer ;; TODO: Change to "+ivy/switch-workspace-buffer"
+
+   ;; Buffer
+   "b" '(:ignore t :wk "buffer")
+   "bs" '(save-buffer :wk "Save buffer")
+   "br" '(revert-buffer :wk "Revert buffer")
+   "be" '(eval-buffer :wk "Evaluate buffer")
+
+   ;; Eval
+   ;; TODO: use the following: 'eval-surrounding-or-next-closure
+   "e" '(eval-last-sexp :wk "Eval last sexp")
+
+   ;; Quit
+   "q" '(:ignore t :wk "quit")
+   ;; "qr" '(restart-emacs :wk "Restart Emacs") TODO: maybe someday?
+   "qq" '(save-buffers-kill-terminal :wk "Save buffers and quit")))
+#+end_src
+
+* Fonts
+#+begin_src emacs-lisp
+(set-face-attribute 'default nil
+  :font "Fira Code"
+  :height 130
+  :weight 'medium)
+(set-face-attribute 'variable-pitch nil
+  :font "Ubuntu"
+  :height 120
+  :weight 'medium)
+
+;; Comments and keywords italicized.
+(set-face-attribute 'font-lock-comment-face nil
+  :slant 'italic)
+(set-face-attribute 'font-lock-keyword-face nil
+  :slant 'italic)
+
+(setq-default line-spacing 0.12)
+#+end_src
+
+* GUI Tweaks
+** Disable extra stuff
+#+begin_src emacs-lisp
+(menu-bar-mode -1)
+(tool-bar-mode -1)
+(scroll-bar-mode -1)
+#+end_src
+** Display line numbers
+#+begin_src emacs-lisp
+(global-display-line-numbers-mode t)
+#+end_src
+
+** Fullscreen
+#+begin_src emacs-lisp
+(toggle-frame-fullscreen)
+#+end_src
+* Which-Key
+#+begin_src emacs-lisp
+(use-package which-key
+  :init
+  (which-key-mode 1)
+  :config
+  (setq which-key-min-display-lines 6
+        which-key-idle-delay 0.8
+        which-key-max-description-length 27))
+#+end_src
+
+* Org Mode
+** Enabling Table of Contents
+#+begin_src emacs-lisp
+(use-package toc-org
+  :commands toc-org-enable
+  :init (add-hook 'org-mode-hook 'toc-org-enable))
+#+end_src
+** Enabling Org bullets
+#+begin_src emacs-lisp
+(add-hook 'org-mode-hook 'org-indent-mode)
+(use-package org-bullets)
+(add-hook 'org-mode-hook (lambda () (org-bullets-mode 1)))
+#+end_src
