@@ -13,7 +13,9 @@
 - [[#gui-tweaks][GUI Tweaks]]
   - [[#disable-extra-stuff][Disable extra stuff]]
   - [[#display-line-numbers][Display line numbers]]
+  - [[#column-numbers][Column numbers]]
   - [[#fullscreen][Fullscreen]]
+- [[#theme][Theme]]
 - [[#which-key][Which-Key]]
 - [[#org-mode][Org Mode]]
   - [[#enabling-table-of-contents][Enabling Table of Contents]]
@@ -67,7 +69,6 @@
         (setq elpaca-use-package-by-default t))
 (elpaca-wait)
 #+end_src
-
 ** Load Evil Mode
 #+begin_src emacs-lisp
 ;; Expands to: (elpaca evil (use-package evil :demand t))
@@ -83,24 +84,29 @@
   :config
   (setq evil-collection-mode-list '(dashboard dired ibuffer))
   (evil-collection-init))
-#+end_src
 
+(use-package evil-nerd-commenter
+  :after evil)
+#+end_src
 ** General Keybindings
 #+begin_src emacs-lisp
-;; TODO: fix me
-;; (defun eval-surrounding-or-next-closure ()
-;;   "Evaluates surrounding closure if found, otherwise the next closure."
-;;   (interactive)
-;;   (save-excursion
-;;     (let ((original-point (point)))
-;;       (evil-visual-char)
-;;       (call-interactively #'evil-a-paren)
-;;       (call-interactively #'eval-region)
-;;       (goto-char original-point))))
+(defun eval-surrounding-or-next-closure ()
+  "Evaluates surrounding closure if found, otherwise the next closure."
+  (interactive)
+  (evil-visual-char)
+  (call-interactively #'evil-a-paren)
+  (call-interactively #'eval-region))
 
 (use-package general
   :config
   (general-evil-setup)
+
+  (general-def 'motion
+    "g c" 'evilnc-comment-operator)
+
+  (general-def 'motion
+    "<tab>" 'eval-surrounding-or-next-closure)
+
   (general-create-definer kettroni/leader-keys
     :states '(normal visual emacs)
     :keymaps 'override
@@ -111,12 +117,14 @@
    ;; General
    "." 'find-file ;; TODO: Change to "counsel-find-file".
    "," 'switch-to-buffer ;; TODO: Change to "+ivy/switch-workspace-buffer"
+   "f c" '((lambda () (interactive) (find-file "~/emacs_vanilla/config.org")) :wk "Edit emacs config")
 
    ;; Buffer
    "b" '(:ignore t :wk "buffer")
    "bs" '(save-buffer :wk "Save buffer")
    "br" '(revert-buffer :wk "Revert buffer")
    "be" '(eval-buffer :wk "Evaluate buffer")
+   "bk" '(kill-buffer :wk "Kill buffer")
 
    ;; Eval
    ;; TODO: use the following: 'eval-surrounding-or-next-closure
@@ -127,42 +135,54 @@
    ;; "qr" '(restart-emacs :wk "Restart Emacs") TODO: maybe someday?
    "qq" '(save-buffers-kill-terminal :wk "Save buffers and quit")))
 #+end_src
-
 * Fonts
 #+begin_src emacs-lisp
 (set-face-attribute 'default nil
-  :font "Fira Code"
-  :height 130
-  :weight 'medium)
+                    :font "Fira Code"
+                    :height 130
+                    :weight 'medium)
 (set-face-attribute 'variable-pitch nil
-  :font "Ubuntu"
-  :height 120
-  :weight 'medium)
+                    :font "Ubuntu"
+                    :height 120
+                    :weight 'medium)
 
 ;; Comments and keywords italicized.
 (set-face-attribute 'font-lock-comment-face nil
-  :slant 'italic)
+                    :slant 'italic)
 (set-face-attribute 'font-lock-keyword-face nil
-  :slant 'italic)
+                    :slant 'italic)
 
 (setq-default line-spacing 0.12)
 #+end_src
-
 * GUI Tweaks
 ** Disable extra stuff
 #+begin_src emacs-lisp
 (menu-bar-mode -1)
 (tool-bar-mode -1)
 (scroll-bar-mode -1)
+(blink-cursor-mode -1)
+(setq inhibit-startup-screen t)
 #+end_src
 ** Display line numbers
 #+begin_src emacs-lisp
 (global-display-line-numbers-mode t)
 #+end_src
-
+** Column numbers
+#+begin_src emacs-lisp
+(column-number-mode +1)
+#+end_src
 ** Fullscreen
 #+begin_src emacs-lisp
 (toggle-frame-fullscreen)
+#+end_src
+
+* Theme
+#+begin_src emacs-lisp
+(use-package nordic-night-theme
+  :ensure t
+  :config
+  (load-theme 'nordic-night t))
+
 #+end_src
 * Which-Key
 #+begin_src emacs-lisp
@@ -174,7 +194,6 @@
         which-key-idle-delay 0.8
         which-key-max-description-length 27))
 #+end_src
-
 * Org Mode
 ** Enabling Table of Contents
 #+begin_src emacs-lisp
